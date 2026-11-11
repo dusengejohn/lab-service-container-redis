@@ -1,0 +1,54 @@
+name: Container Services Workflow
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+
+    # 1. Define the service containers needed for this job
+    services:
+      redis:
+        # Use the official Redis image from Docker Hub
+        image: redis:7-alpine
+        # Map port 6379 on the Redis container to port 6379 on the runner host
+        ports:
+          - 6379:6379
+        # Wait for Redis to pass a health check before starting your job steps
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+  build-and-deploy:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
+        - name: Set up Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: '3.11'
+      # 2. Install a Redis client package to test the connection
+        - name: Install dependencies
+          run: pip install redis
+
+      # 3. Connect to Redis on localhost:6379
+        - name: Verify Redis Connection
+          run: |
+            python -c "
+            import redis
+          
+            # The service is mapped to localhost because of the ports mapping above
+            r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+          
+            print('Connecting to Redis...')
+            r.set('workflow_status', 'Redis is successfully connected!')
+          
+            value = r.get('workflow_status')
+            print(f'Retrieved value from Redis: {value}')
+            "
